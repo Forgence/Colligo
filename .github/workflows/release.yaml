@@ -1,0 +1,87 @@
+name: Build, Test, and Release Colligo
+
+on:
+  push:
+    branches:
+      - main  # Trigger on pushes to the main branch
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        go-version: [1.22]
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Run Tests
+        working-directory: src
+        run: go test ./... -v
+
+  build:
+    runs-on: ${{ matrix.os }}
+    needs: test
+    strategy:
+      matrix:
+        go-version: [1.22]
+        os: [windows-latest, ubuntu-latest, macos-latest]
+        arch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Set environment variables
+        run: |
+          echo "GOOS=$(echo '${{ matrix.os }}' | cut -d'-' -f1)" >> $GITHUB_ENV
+          echo "GOARCH=${{ matrix.arch }}" >> $GITHUB_ENV
+          echo "DATETIME=$(date -u +'%Y%m%dT%H%M%SZ')" >> $GITHUB_ENV
+          if [ "$GOOS" == "windows" ]; then echo "EXT=.exe" >> $GITHUB_ENV; else echo "EXT=" >> $GITHUB_ENV; fi
+
+      - name: Build Colligo
+        working-directory: src
+        env:
+          GOOS: ${{ env.GOOS }}
+          GOARCH: ${{ env.GOARCH }}
+          EXT: ${{ env.EXT }}
+        run: |
+          mkdir -p build
+          go build -o build/colligo${EXT} cmd/main.go
+
+      # Ensure the Linux and macOS binaries have executable permissions
+      - name: Make Executable
+        if: matrix.os != 'windows-latest'
+        run: chmod +x src/build/colligo${{ env.EXT }}
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: colligo-${{ env.GOOS }}-${{ env.GOARCH }}-${{ env.DATETIME }}${{ env.EXT }}
+          path: src/build/colligo${{ env.EXT }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: ./release
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ./release/*
+          tag_name: release-${{ env.DATETIME }}
+          name: Release ${{ env.DATETIME }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
