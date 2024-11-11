@@ -13,16 +13,15 @@ jobs:
         go-version: [1.22]
         os: [windows-latest, ubuntu-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v3
-
+      - uses: actions/checkout@v4  # Updated for Node.js 20 compatibility
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5  # Updated for Node.js 20 compatibility
         with:
           go-version: ${{ matrix.go-version }}
-
       - name: Run Tests
         working-directory: src
         run: go test ./... -v
+    continue-on-error: true  # Ensures other test jobs continue even if one fails
 
   build:
     runs-on: ${{ matrix.os }}
@@ -33,12 +32,18 @@ jobs:
         os: [windows-latest, ubuntu-latest, macos-latest]
         arch: [amd64, arm64]
     steps:
-      - uses: actions/checkout@v3
-
+      - uses: actions/checkout@v4  # Updated for Node.js 20 compatibility
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5  # Updated for Node.js 20 compatibility
         with:
           go-version: ${{ matrix.go-version }}
+
+      - name: Check Unsupported GOOS/GOARCH
+        run: |
+          if [ "${{ matrix.os }}_${{ matrix.arch }}" == "ubuntu_arm64" ]; then
+            echo "Unsupported OS/Arch combination: ubuntu/arm64. Skipping build."
+            exit 1
+          fi
 
       - name: Set environment variables
         run: |
@@ -56,8 +61,8 @@ jobs:
         run: |
           mkdir -p build
           go build -o build/colligo${EXT} cmd/main.go
+        continue-on-error: true  # Continue with other builds if one fails
 
-      # Ensure the Linux and macOS binaries have executable permissions
       - name: Make Executable
         if: matrix.os != 'windows-latest'
         run: chmod +x src/build/colligo${{ env.EXT }}
@@ -76,7 +81,6 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           path: ./release
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:

@@ -1,3 +1,3 @@
-module github.com/Forgence/Colligo/src
+module github.com/Forgence/Colligo
 
 go 1.22
