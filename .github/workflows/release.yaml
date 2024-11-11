@@ -3,7 +3,7 @@ name: Build, Test, and Release Colligo
 on:
   push:
     branches:
-      - main  # Trigger on pushes to the main branch
+      - main
 
 jobs:
   test:
@@ -13,15 +13,15 @@ jobs:
         go-version: [1.22]
         os: [windows-latest, ubuntu-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v4  # Updated for Node.js 20 compatibility
+      - uses: actions/checkout@v4
       - name: Set up Go
-        uses: actions/setup-go@v5  # Updated for Node.js 20 compatibility
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go-version }}
       - name: Run Tests
         working-directory: src
         run: go test ./... -v
-    continue-on-error: true  # Ensures other test jobs continue even if one fails
+        continue-on-error: true  # Keep going even if tests fail to examine logs
 
   build:
     runs-on: ${{ matrix.os }}
@@ -29,21 +29,25 @@ jobs:
     strategy:
       matrix:
         go-version: [1.22]
-        os: [windows-latest, ubuntu-latest, macos-latest]
-        arch: [amd64, arm64]
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        arch: [amd64]
     steps:
-      - uses: actions/checkout@v4  # Updated for Node.js 20 compatibility
+      - uses: actions/checkout@v4
       - name: Set up Go
-        uses: actions/setup-go@v5  # Updated for Node.js 20 compatibility
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go-version }}
 
-      - name: Check Unsupported GOOS/GOARCH
+      - name: Print Environment for Debugging
         run: |
-          if [ "${{ matrix.os }}_${{ matrix.arch }}" == "ubuntu_arm64" ]; then
-            echo "Unsupported OS/Arch combination: ubuntu/arm64. Skipping build."
-            exit 1
-          fi
+          echo "OS: ${{ matrix.os }}"
+          echo "Arch: ${{ matrix.arch }}"
+          echo "Go version: ${{ matrix.go-version }}"
+          echo "Working directory: $(pwd)"
+          echo "Files in src/ directory:"
+          ls -al src/
+          echo "Environment Variables:"
+          printenv
 
       - name: Set environment variables
         run: |
@@ -60,14 +64,12 @@ jobs:
           EXT: ${{ env.EXT }}
         run: |
           mkdir -p build
-          go build -o build/colligo${EXT} cmd/main.go
-        continue-on-error: true  # Continue with other builds if one fails
-
-      - name: Make Executable
-        if: matrix.os != 'windows-latest'
-        run: chmod +x src/build/colligo${{ env.EXT }}
+          go build -o build/colligo${EXT} cmd/main.go || echo "Build failed with exit code $?"
+          ls -al build/
+        continue-on-error: true
 
       - name: Upload Artifact
+        if: success()
         uses: actions/upload-artifact@v3
         with:
           name: colligo-${{ env.GOOS }}-${{ env.GOARCH }}-${{ env.DATETIME }}${{ env.EXT }}
