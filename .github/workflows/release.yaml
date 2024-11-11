@@ -39,13 +39,17 @@ jobs:
           go-version: ${{ matrix.go-version }}
 
       - name: Print Environment for Debugging
+        shell: bash
         run: |
           echo "OS: ${{ matrix.os }}"
           echo "Arch: ${{ matrix.arch }}"
           echo "Go version: ${{ matrix.go-version }}"
           echo "Working directory: $(pwd)"
-          echo "Files in src/ directory:"
-          ls -al src/
+          if [ "${{ matrix.os }}" == "windows-latest" ]; then
+            dir src/
+          else
+            ls -la src/
+          fi
           echo "Environment Variables:"
           printenv
 
@@ -65,7 +69,7 @@ jobs:
         run: |
           mkdir -p build
           go build -o build/colligo${EXT} cmd/main.go || echo "Build failed with exit code $?"
-          ls -al build/
+          dir build/
         continue-on-error: true
 
       - name: Upload Artifact
